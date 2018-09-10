@@ -1,0 +1,72 @@
+安装说明：
+
+    git clone --recursive https://github.com/zj463261929/caffe2_old.git
+    cd caffe2
+    mkdir build 
+    cd build
+    cmake .. -DCUDA_ARCH_NAME=Manual -DCUDA_ARCH_BIN="35 52 60 61" -DCUDA_ARCH_PTX="61" 
+        -DUSE_NNPACK=OFF -DUSE_ROCKSDB=OFF  -DUSE_NATIVE_ARCH=ON 
+    或者 cmake..
+    make -j8 install
+
+    备注：参数USE_NATIVE_ARCH对速度没影响。
+error:
+    caffe2编译问题：9898 init_intrinsics_check.cc:54] CPU feature avx is present on your machine, 
+                    but the Caffe2 binary is not compiled with it. It means you may not get the full speed of your CPU.
+    解决办法：编译时加参数， Dockerfile中 -DUSE_NATIVE_ARCH=ON 或caffe2/CMakeLists.txt
+                option(USE_NATIVE_ARCH "Use -march=native" ON) 
+    参考文献：https://github.com/caffe2/caffe2/issues/1789    
+    
+    option(USE_NATIVE_ARCH "Use -march=native" ON) 
+    
+    如果拉https://github.com/zj463261929/caffe2_old.git，cpu版本，cmake..、make install都OK.
+    如果拉https://github.com/zj463261929/caffe2_old.git，make时，error如下:    
+        /usr/local/nvidia/lib/libcuda.so: error adding symbols: File in wrong format
+        collect2: error: ld returned 1 exit status
+        caffe2/CMakeFiles/Caffe2_CPU.dir/build.make:5268: recipe for target 'caffe2/libCaffe2_CPU.so' failed
+        make[2]: *** [caffe2/libCaffe2_CPU.so] Error 1
+        CMakeFiles/Makefile2:2452: recipe for target 'caffe2/CMakeFiles/Caffe2_CPU.dir/all' failed
+        make[1]: *** [caffe2/CMakeFiles/Caffe2_CPU.dir/all] Error 2
+        Makefile:138: recipe for target 'all' failed
+        make: *** [all] Error 2
+    
+    detecron_gpu镜像里面带的caffe2,编译出现的问题：
+        /usr/local/nvidia/lib/libcuda.so: error adding symbols: File in wrong format
+        collect2: error: ld returned 1 exit status
+        caffe2/CMakeFiles/caffe2.dir/build.make:7106: recipe for target 'lib/libcaffe2.so' failed
+        make[3]: *** [lib/libcaffe2.so] Error 1
+        make[3]: Leaving directory '/caffe2/build'
+        CMakeFiles/Makefile2:3439: recipe for target 'caffe2/CMakeFiles/caffe2.dir/all' failed
+        make[2]: *** [caffe2/CMakeFiles/caffe2.dir/all] Error 2
+        make[2]: Leaving directory '/caffe2/build'
+        Makefile:138: recipe for target 'all' failed
+        make[1]: *** [all] Error 2
+        make[1]: Leaving directory '/caffe2/build'
+        Makefile:4: recipe for target 'all' failed
+        make: *** [all] Error 2
+        原因：cmake时出现下面           
+            -- CUDA detected: 8.0
+            -- Added CUDA NVCC flags for: sm_35 sm_52 sm_60 sm_61 compute_61
+            -- Found libcuda: /usr/local/nvidia/lib/libcuda.so
+            -- Found libnvrtc: /usr/local/cuda/lib64/libnvrtc.so
+            -- Found cuDNN: v6.0.21  (include: /usr/include, library: /usr/lib/x86_64-linux-gnu/libcudnn.so)
+            -- Could NOT find NCCL (missing:  NCCL_INCLUDE_DIRS NCCL_LIBRARIES)
+            -- NCCL: /caffe2/third_party/nccl/build/lib/libnccl_static.a
+            -- Could NOT find CUB (missing:  CUB_INCLUDE_DIR)
+            -- Could NOT find Gloo (missing:  Gloo_INCLUDE_DIR Gloo_LIBRARY)
+            -- MPI include path: /usr/lib/openmpi/include/openmpi/opal/mca/event/libevent2021/libevent/usr/lib/openmpi/include/openmpi/opal/mca/event/libevent2021/libevent/include/usr/lib/openmpi/include/usr/lib/openmpi/include/openmpi
+            -- MPI libraries: /usr/lib/openmpi/lib/libmpi_cxx.so/usr/lib/openmpi/lib/libmpi.so
+            -- CUDA detected: 8.0
+            -- Found libcuda: /usr/local/nvidia/lib/libcuda.so
+            -- Found libnvrtc: /usr/local/cuda/lib64/libnvrtc.so
+            CMake Warning at cmake/Dependencies.cmake:476 (message):
+              Metal is only used in ios builds.
+            Call Stack (most recent call first):
+              CMakeLists.txt:88 (include)
+        解决办法：修改caffe2/cmake/Cuda.cmake文件，强行将路径改成/usr/local/nvidia/lib64/libcuda.so
+            
+            find_library(CUDA_CUDA_LIB cuda
+                PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+                PATH_SUFFIXES lib lib64 lib/stubs lib64/stubs lib/x64)
+            set(CUDA_CUDA_LIB /usr/local/nvidia/lib64/libcuda.so)
+
